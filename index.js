@@ -6,7 +6,7 @@ import cors from "cors";
 import path from "path";
 
 import authRoutes from "./Routes/authRoute/authRoutes.js";
-import hotelBookingRoutes from "./Routes/hotelbookingRoutes/hotelBookingRoutes.js";
+import hotelBookingRoutes from "./Routes/hotelbookingRoutes/hotelbookingRoutes.js";
 import ticketBookingRoutes from "./Routes/ticketbookingRoutes/ticketBookingRoutes.js";
 import eventRoutes from "./Routes/addEventRoute/addEventRoute.js";
 import hotelRoutes from "./Routes/hotelRoute/hotelRoute.js";
