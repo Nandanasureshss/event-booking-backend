@@ -1,8 +1,11 @@
 import mongoose from "mongoose";
 import dotenv from "dotenv";
+console.log("ENV KEYS:", Object.keys(process.env));
+console.log("MONGO_URL VALUE:", process.env.MONGO_URL);
 
-dotenv.config();
-
+if (process.env.NODE_ENV !== "production") {
+  dotenv.config();
+}
 const mongoURL = process.env.MONGO_URL;
 
 mongoose.connect(mongoURL, {
