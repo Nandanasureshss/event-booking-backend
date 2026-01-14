@@ -1,7 +1,11 @@
 import Event from "../Model/addEventSchema.js";
+import cloudinary from "../utils/cloudinary.js";
+import streamifier from "streamifier";
 
 export const createEvent = async (req, res) => {
   try {
+    console.log("FILES RECEIVED 👉", req.files);
+
     const {
       eventName,
       location,
@@ -13,21 +17,37 @@ export const createEvent = async (req, res) => {
       ticketType
     } = req.body;
 
-    // Parse seating categories
+    // ✅ Parse seating categories
     let parsedCategories = JSON.parse(seatingCategories);
 
-   parsedCategories = parsedCategories.map((cat, index) => {
-  const pdfFile = req.files?.[`ticketPdf_${index}`]?.[0];
+    parsedCategories = parsedCategories.map((cat) => ({
+      name: cat.name,
+      price: Number(cat.price),
+      purchasePrice: Number(cat.purchasePrice),
+      ticketsAvailable: Number(cat.tickets),
+      ticketPdfPath: null
+    }));
 
-  return {
-    name: cat.name,
-    price: Number(cat.price),
-    purchasePrice: Number(cat.purchasePrice),
-    ticketsAvailable: Number(cat.tickets), // ✅ FIX HERE
-    ticketPdfPath:
-      ticketType === "pdf" && pdfFile ? pdfFile.filename : null
-  };
-});
+    // ✅ Upload images to Cloudinary
+  const mediaFiles = [];
+
+if (req.files?.mediaFiles) {
+  for (const file of req.files.mediaFiles) {
+    const result = await new Promise((resolve, reject) => {
+      const stream = cloudinary.uploader.upload_stream(
+        { folder: "events" },
+        (error, result) => {
+          if (result) resolve(result);
+          else reject(error);
+        }
+      );
+
+      streamifier.createReadStream(file.buffer).pipe(stream);
+    });
+
+    mediaFiles.push(result.secure_url);
+  }
+}
 
 
     const event = new Event({
@@ -39,7 +59,7 @@ export const createEvent = async (req, res) => {
       isPopular,
       seatingCategories: parsedCategories,
       ticketType,
-      mediaFiles: req.files?.mediaFiles?.map(f => f.filename) || []
+      mediaFiles
     });
 
     await event.save();
@@ -50,7 +70,7 @@ export const createEvent = async (req, res) => {
     });
 
   } catch (err) {
-    console.error(err);
+    console.error("CREATE EVENT ERROR ❌", err);
     res.status(500).json({
       success: false,
       message: err.message
