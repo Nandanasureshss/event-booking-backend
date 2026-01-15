@@ -74,6 +74,18 @@ export const sendOtp = async (req, res) => {
     console.error("SEND OTP ERROR:", err);
     res.status(500).json({ msg: err.message });
   }
+  try {
+  await transporter.sendMail({
+    from: process.env.EMAIL_USER,
+    to: email,
+    subject: "Your Login OTP",
+    text: `Your OTP is ${otp}`,
+  });
+} catch (error) {
+  console.error("EMAIL ERROR ❌", error);
+  return res.status(500).json({ msg: "Email failed" });
+}
+
 };
 
 /* ---------------- VERIFY OTP ---------------- */
