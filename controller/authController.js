@@ -6,6 +6,20 @@ import { OAuth2Client } from "google-auth-library";
 /* ---------------- GOOGLE CLIENT ---------------- */
 const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
+/* ---------------- NODEMAILER TRANSPORTER ---------------- */
+const transporter = nodemailer.createTransport({
+  host: "smtp.gmail.com",
+  port: 587,
+  secure: false,
+  auth: {
+    user: process.env.EMAIL_USER,
+    pass: process.env.EMAIL_PASS,
+  },
+  connectionTimeout: 10000,
+  greetingTimeout: 10000,
+  socketTimeout: 10000,
+});
+
 /* ---------------- HELPERS ---------------- */
 const generateToken = (id) =>
   jwt.sign({ id }, process.env.JWT_SECRET, { expiresIn: "7d" });
@@ -45,16 +59,10 @@ export const sendOtp = async (req, res) => {
     if (method === "email") {
       user.emailOtp = otp;
 
-      const transporter = nodemailer.createTransport({
-        host: "smtp.gmail.com",
-        port: 465,
-        secure: true,
-        auth: {
-          user: process.env.EMAIL_USER,
-          pass: process.env.EMAIL_PASS,
-        },
-      });
+      // verify SMTP connection
+      await transporter.verify();
 
+      // send OTP email
       await transporter.sendMail({
         from: process.env.EMAIL_USER,
         to: email,
@@ -71,21 +79,9 @@ export const sendOtp = async (req, res) => {
 
     res.json({ msg: `OTP sent via ${method}` });
   } catch (err) {
-    console.error("SEND OTP ERROR:", err);
-    res.status(500).json({ msg: err.message });
+    console.error("SEND OTP ERROR ❌", err);
+    res.status(500).json({ msg: "Email service failed" });
   }
-  try {
-  await transporter.sendMail({
-    from: process.env.EMAIL_USER,
-    to: email,
-    subject: "Your Login OTP",
-    text: `Your OTP is ${otp}`,
-  });
-} catch (error) {
-  console.error("EMAIL ERROR ❌", error);
-  return res.status(500).json({ msg: "Email failed" });
-}
-
 };
 
 /* ---------------- VERIFY OTP ---------------- */
