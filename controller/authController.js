@@ -68,10 +68,13 @@ export const sendOtp = async (req, res) => {
     await user.save();
 
     res.json({ msg: `OTP sent via ${method}` });
-  } catch (err) {
-    console.error("SEND OTP ERROR ❌", err);
-    res.status(500).json({ msg: "Email service failed" });
-  }
+  }  catch (err) {
+  console.error("SEND OTP ERROR FULL:", err);
+  console.error("SENDGRID_API_KEY EXISTS:", !!process.env.SENDGRID_API_KEY);
+  console.error("SENDGRID_API_KEY LENGTH:", process.env.SENDGRID_API_KEY?.length);
+  res.status(500).json({ msg: "Email service failed" });
+}
+
 };
 
 /* ---------------- VERIFY OTP ---------------- */
