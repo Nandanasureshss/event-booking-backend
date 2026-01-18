@@ -2,9 +2,16 @@ import Login from "../Model/loginSchema.js";
 import jwt from "jsonwebtoken";
 import { OAuth2Client } from "google-auth-library";
 import sgMail from "@sendgrid/mail";
+import twilio from "twilio";
 
 /* ---------------- GOOGLE CLIENT ---------------- */
 const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
+
+/* ---------------- TWILIO CLIENT ---------------- */
+const twilioClient = twilio(
+  process.env.TWILIO_ACCOUNT_SID,
+  process.env.TWILIO_AUTH_TOKEN
+);
 
 /* ---------------- SENDGRID CONFIG ---------------- */
 sgMail.setApiKey(process.env.SENDGRID_API_KEY);
@@ -22,7 +29,6 @@ export const sendOtp = async (req, res) => {
 
   try {
     const { method, email, phone } = req.body;
-    const otp = generateOtp();
 
     if (
       !method ||
@@ -35,18 +41,14 @@ export const sendOtp = async (req, res) => {
     let user;
 
     if (method === "email") {
+      const otp = generateOtp();
+
       user = await Login.findOne({ email });
       if (!user) user = new Login({ email });
-    } else {
-      user = await Login.findOne({ phone });
-      if (!user) user = new Login({ phone });
-    }
 
-    user.emailOtp = null;
-    user.phoneOtp = null;
-
-    if (method === "email") {
       user.emailOtp = otp;
+      user.phoneOtp = null;
+      user.otpExpiry = new Date(Date.now() + 5 * 60 * 1000);
 
       await sgMail.send({
         to: email,
@@ -54,28 +56,39 @@ export const sendOtp = async (req, res) => {
         subject: "Your Login OTP",
         text: `Your OTP is ${otp}`,
       });
-    } else {
-      user.phoneOtp = otp;
-      console.log("📱 Phone OTP:", otp);
+
+      await user.save();
+
+      console.log("EMAIL OTP SAVED:", {
+        email: user.email,
+        otp: user.emailOtp,
+        expiry: user.otpExpiry,
+      });
+
+      return res.json({ msg: "OTP sent via email" });
     }
 
-    user.otpExpiry = new Date(Date.now() + 5 * 60 * 1000);
-    await user.save();
+    /* ---------------- PHONE OTP (TWILIO VERIFY) ---------------- */
+    if (method === "phone") {
+      user = await Login.findOne({ phone });
+      if (!user) user = new Login({ phone });
 
-    // ✅ CORRECT PLACE FOR LOG
-    console.log("OTP SAVED:", {
-      email: user.email,
-      otp: user.emailOtp,
-      expiry: user.otpExpiry,
-    });
+      await twilioClient.verify.v2
+        .services(process.env.TWILIO_VERIFY_SERVICE_SID)
+        .verifications.create({
+          to: phone,          // must be +91XXXXXXXXXX
+          channel: "sms",
+        });
 
-    res.json({ msg: `OTP sent via ${method}` });
+      await user.save();
+
+      return res.json({ msg: "OTP sent via phone" });
+    }
   } catch (err) {
-    console.error("SEND OTP ERROR FULL:", err);
-    res.status(500).json({ msg: "Email service failed" });
+    console.error("SEND OTP ERROR:", err);
+    res.status(500).json({ msg: "OTP sending failed" });
   }
 };
-
 
 /* ---------------- VERIFY OTP ---------------- */
 export const verifyOtp = async (req, res) => {
@@ -86,25 +99,39 @@ export const verifyOtp = async (req, res) => {
       return res.status(400).json({ msg: "Invalid request" });
     }
 
-    const user =
-      method === "email"
-        ? await Login.findOne({ email })
-        : await Login.findOne({ phone });
+    let user;
 
-    if (!user || !user.otpExpiry) {
-      return res.status(400).json({ msg: "Please resend OTP" });
+    /* ---------------- EMAIL OTP VERIFY ---------------- */
+    if (method === "email") {
+      user = await Login.findOne({ email });
+
+      if (!user || !user.otpExpiry) {
+        return res.status(400).json({ msg: "Please resend OTP" });
+      }
+
+      if (Date.now() > new Date(user.otpExpiry).getTime()) {
+        return res.status(400).json({ msg: "OTP expired. Please resend OTP." });
+      }
+
+      if (user.emailOtp !== otp) {
+        return res.status(400).json({ msg: "Invalid OTP" });
+      }
     }
 
-    if (Date.now() > new Date(user.otpExpiry).getTime()) {
-      return res.status(400).json({ msg: "OTP expired. Please resend OTP." });
-    }
+    /* ---------------- PHONE OTP VERIFY (TWILIO) ---------------- */
+    if (method === "phone") {
+      user = await Login.findOne({ phone });
 
-    if (method === "email" && user.emailOtp !== otp) {
-      return res.status(400).json({ msg: "Invalid OTP" });
-    }
+      const verificationCheck = await twilioClient.verify.v2
+        .services(process.env.TWILIO_VERIFY_SERVICE_SID)
+        .verificationChecks.create({
+          to: phone,
+          code: otp,
+        });
 
-    if (method === "phone" && user.phoneOtp !== otp) {
-      return res.status(400).json({ msg: "Invalid OTP" });
+      if (verificationCheck.status !== "approved") {
+        return res.status(400).json({ msg: "Invalid OTP" });
+      }
     }
 
     user.emailOtp = null;
@@ -125,7 +152,7 @@ export const verifyOtp = async (req, res) => {
     });
   } catch (err) {
     console.error("VERIFY OTP ERROR:", err);
-    res.status(500).json({ msg: err.message });
+    res.status(500).json({ msg: "OTP verification failed" });
   }
 };
 
@@ -142,10 +169,7 @@ export const googleLogin = async (req, res) => {
     const { email, name } = ticket.getPayload();
 
     let user = await Login.findOne({ email });
-
-    if (!user) {
-      user = await Login.create({ email });
-    }
+    if (!user) user = await Login.create({ email });
 
     const jwtToken = generateToken(user._id);
 
