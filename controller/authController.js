@@ -9,16 +9,14 @@ const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 /* ---------------- NODEMAILER TRANSPORTER ---------------- */
 const transporter = nodemailer.createTransport({
   host: "smtp.gmail.com",
-  port: 587,
-  secure: false,
+  port: 465,
+  secure: true, // ✅ IMPORTANT for Render
   auth: {
     user: process.env.EMAIL_USER,
     pass: process.env.EMAIL_PASS,
   },
-  connectionTimeout: 10000,
-  greetingTimeout: 10000,
-  socketTimeout: 10000,
 });
+
 
 /* ---------------- HELPERS ---------------- */
 const generateToken = (id) =>
@@ -59,8 +57,6 @@ export const sendOtp = async (req, res) => {
     if (method === "email") {
       user.emailOtp = otp;
 
-      // verify SMTP connection
-      await transporter.verify();
 
       // send OTP email
       await transporter.sendMail({
