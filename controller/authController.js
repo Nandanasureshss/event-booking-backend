@@ -8,14 +8,14 @@ const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
 /* ---------------- NODEMAILER TRANSPORTER ---------------- */
 const transporter = nodemailer.createTransport({
-  host: "smtp.gmail.com",
-  port: 465,
-  secure: true, // ✅ IMPORTANT for Render
+  host: "smtp.sendgrid.net",
+  port: 587,
   auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS,
+    user: "apikey",
+    pass: process.env.SENDGRID_API_KEY,
   },
 });
+
 
 
 /* ---------------- HELPERS ---------------- */
