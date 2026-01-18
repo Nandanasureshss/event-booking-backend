@@ -48,32 +48,34 @@ export const sendOtp = async (req, res) => {
     if (method === "email") {
       user.emailOtp = otp;
 
-      // ✅ Send OTP using SendGrid HTTP API
       await sgMail.send({
         to: email,
-        from: process.env.EMAIL_USER, // VERIFIED SINGLE SENDER
+        from: process.env.EMAIL_USER,
         subject: "Your Login OTP",
         text: `Your OTP is ${otp}`,
       });
     } else {
       user.phoneOtp = otp;
-      console.log("📱 Phone OTP:", otp); // mock SMS
+      console.log("📱 Phone OTP:", otp);
     }
 
     user.otpExpiry = new Date(Date.now() + 5 * 60 * 1000);
     await user.save();
 
+    // ✅ CORRECT PLACE FOR LOG
+    console.log("OTP SAVED:", {
+      email: user.email,
+      otp: user.emailOtp,
+      expiry: user.otpExpiry,
+    });
+
     res.json({ msg: `OTP sent via ${method}` });
   } catch (err) {
     console.error("SEND OTP ERROR FULL:", err);
-    console.error("SENDGRID_API_KEY EXISTS:", !!process.env.SENDGRID_API_KEY);
-    console.error(
-      "SENDGRID_API_KEY LENGTH:",
-      process.env.SENDGRID_API_KEY?.length
-    );
     res.status(500).json({ msg: "Email service failed" });
   }
 };
+
 
 /* ---------------- VERIFY OTP ---------------- */
 export const verifyOtp = async (req, res) => {
