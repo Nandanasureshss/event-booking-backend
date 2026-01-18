@@ -1,18 +1,15 @@
 import Login from "../Model/loginSchema.js";
 import jwt from "jsonwebtoken";
-import nodemailer from "nodemailer";
 import { OAuth2Client } from "google-auth-library";
+import sgMail from "@sendgrid/mail";
 
+/* ---------------- GOOGLE CLIENT ---------------- */
 const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
-const transporter = nodemailer.createTransport({
-  host: "smtp.sendgrid.net",
-  port: 587,
-  auth: {
-    user: "apikey",
-    pass: process.env.SENDGRID_API_KEY,
-  },
-});
+/* ---------------- SENDGRID CONFIG ---------------- */
+sgMail.setApiKey(process.env.SENDGRID_API_KEY);
+
+/* ---------------- HELPERS ---------------- */
 const generateToken = (id) =>
   jwt.sign({ id }, process.env.JWT_SECRET, { expiresIn: "7d" });
 
@@ -51,11 +48,10 @@ export const sendOtp = async (req, res) => {
     if (method === "email") {
       user.emailOtp = otp;
 
-
-      // send OTP email
-      await transporter.sendMail({
-        from: process.env.EMAIL_USER,
+      // ✅ Send OTP using SendGrid HTTP API
+      await sgMail.send({
         to: email,
+        from: process.env.EMAIL_USER, // VERIFIED SINGLE SENDER
         subject: "Your Login OTP",
         text: `Your OTP is ${otp}`,
       });
@@ -68,13 +64,15 @@ export const sendOtp = async (req, res) => {
     await user.save();
 
     res.json({ msg: `OTP sent via ${method}` });
-  }  catch (err) {
-  console.error("SEND OTP ERROR FULL:", err);
-  console.error("SENDGRID_API_KEY EXISTS:", !!process.env.SENDGRID_API_KEY);
-  console.error("SENDGRID_API_KEY LENGTH:", process.env.SENDGRID_API_KEY?.length);
-  res.status(500).json({ msg: "Email service failed" });
-}
-
+  } catch (err) {
+    console.error("SEND OTP ERROR FULL:", err);
+    console.error("SENDGRID_API_KEY EXISTS:", !!process.env.SENDGRID_API_KEY);
+    console.error(
+      "SENDGRID_API_KEY LENGTH:",
+      process.env.SENDGRID_API_KEY?.length
+    );
+    res.status(500).json({ msg: "Email service failed" });
+  }
 };
 
 /* ---------------- VERIFY OTP ---------------- */
