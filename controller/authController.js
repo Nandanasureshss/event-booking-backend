@@ -3,10 +3,8 @@ import jwt from "jsonwebtoken";
 import nodemailer from "nodemailer";
 import { OAuth2Client } from "google-auth-library";
 
-/* ---------------- GOOGLE CLIENT ---------------- */
 const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
-/* ---------------- NODEMAILER TRANSPORTER ---------------- */
 const transporter = nodemailer.createTransport({
   host: "smtp.sendgrid.net",
   port: 587,
@@ -15,10 +13,6 @@ const transporter = nodemailer.createTransport({
     pass: process.env.SENDGRID_API_KEY,
   },
 });
-
-
-
-/* ---------------- HELPERS ---------------- */
 const generateToken = (id) =>
   jwt.sign({ id }, process.env.JWT_SECRET, { expiresIn: "7d" });
 
