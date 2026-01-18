@@ -1,7 +1,7 @@
 import Event from "../Model/addEventSchema.js";
 import cloudinary from "../utils/cloudinary.js";
 import streamifier from "streamifier";
-
+import nodemailer from "nodemailer"
 export const createEvent = async (req, res) => {
   try {
     console.log("FILES RECEIVED 👉", req.files);
@@ -16,7 +16,7 @@ export const createEvent = async (req, res) => {
       seatingCategories,
       ticketType
     } = req.body;
-
+ 
     // ✅ Parse seating categories
     let parsedCategories = JSON.parse(seatingCategories);
 
@@ -30,6 +30,29 @@ export const createEvent = async (req, res) => {
 
     // ✅ Upload images to Cloudinary
   const mediaFiles = [];
+  let ticketPdf = null;
+
+   /* ---------- UPLOAD PDF TO CLOUDINARY ---------- */
+if (ticketType === "pdf" && req.files?.ticketPdf?.length > 0) {
+  const pdfFile = req.files.ticketPdf[0];
+
+  const pdfResult = await new Promise((resolve, reject) => {
+    const stream = cloudinary.uploader.upload_stream(
+      {
+        resource_type: "raw",
+        folder: "event_tickets"
+      },
+      (error, result) => {
+        if (result) resolve(result);
+        else reject(error);
+      }
+    );
+
+    streamifier.createReadStream(pdfFile.buffer).pipe(stream);
+  });
+
+  ticketPdf = pdfResult.secure_url;
+}
 
 if (req.files?.mediaFiles) {
   for (const file of req.files.mediaFiles) {
@@ -50,6 +73,7 @@ if (req.files?.mediaFiles) {
 }
 
 
+
     const event = new Event({
       eventName,
       location,
@@ -57,23 +81,121 @@ if (req.files?.mediaFiles) {
       time,
       eventCategory,
       isPopular,
-      seatingCategories: parsedCategories,
       ticketType,
+      ticketPdf, // Cloudinary URL
+seatingCategories: parsedCategories,
       mediaFiles
     });
 
     await event.save();
 
-    res.json({
+    res.status(201).json({
       success: true,
       message: "Event added successfully"
     });
 
-  } catch (err) {
-    console.error("CREATE EVENT ERROR ❌", err);
+  } catch (error) {
+    console.error(error);
     res.status(500).json({
       success: false,
-      message: err.message
+      message: "Failed to add event"
+    });
+  }
+};
+
+/* ================================
+   BOOK TICKET CONTROLLER
+================================ */
+
+export const bookTicket = async (req, res) => {
+  try {
+    const { eventId, userEmail } = req.body;
+
+    const event = await Event.findById(eventId);
+    if (!event) {
+      return res.status(404).json({
+        success: false,
+        message: "Event not found"
+      });
+    }
+
+    /* ---------- EMAIL SETUP ---------- */
+    const transporter = nodemailer.createTransport({
+      service: "gmail",
+      auth: {
+        user: process.env.EMAIL_USER,
+        pass: process.env.EMAIL_PASS
+      }
+    });
+
+    let mailOptions = {
+      from: process.env.EMAIL_USER,
+      to: userEmail,
+      subject: "Event Ticket Confirmation",
+      html: ""
+    };
+
+    /* ---------- ONLINE TICKET ---------- */
+    if (event.ticketType === "online") {
+      mailOptions.html = `
+        <p>Dear Guest,</p>
+
+        <p>Thank you for booking your ticket for <b>${event.eventName}</b>.</p>
+
+        <p>
+          This event uses an <b>online ticket system</b>.<br/>
+          Please download the required application to access your ticket.
+        </p>
+
+        <p><b>XYZ Application</b></p>
+
+        <p>
+          Log in using your registered email address to view your ticket.
+        </p>
+
+        <p>Regards,<br/>Event Team</p>
+      `;
+    }
+
+   /* ---------- PDF TICKET ---------- */
+if (event.ticketType === "pdf") {
+  mailOptions.subject = `Your Event Ticket – ${event.eventName}`;
+  mailOptions.html = `
+    <p>Dear Guest,</p>
+
+    <p>Thank you for booking your ticket for <b>${event.eventName}</b>.</p>
+
+    <p>
+      Your ticket is attached to this email.
+      Please carry a printed copy or show the PDF at the entry gate.
+    </p>
+
+    <p>Enjoy the event!</p>
+
+    <p>Regards,<br/>Event Team</p>
+  `;
+
+  mailOptions.attachments = [
+    {
+      filename: "event-ticket.pdf",
+      path: event.ticketPdf   // ✅ USE SAVED CLOUDINARY URL
+    }
+  ];
+}
+
+
+    await transporter.sendMail(mailOptions);
+
+    res.json({
+      success: true,
+      message: "Ticket booked and email sent successfully"
+    });
+
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({
+      success: false,
+      message: "Ticket booking failed"
     });
   }
 };
