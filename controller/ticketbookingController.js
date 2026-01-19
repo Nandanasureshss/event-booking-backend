@@ -6,7 +6,16 @@ import path from "path";
 // CREATE BOOKING
 export const createBooking = async (req, res) => {
   try {
-    const { eventId, user } = req.body;
+    // ✅ FIX: destructure correct fields
+    const {
+      eventId,
+      seatType,
+      adults,
+      children,
+      pricePerTicket,
+      totalAmount,
+      userEmail,
+    } = req.body;
 
     // 1️⃣ Get event details
     const event = await Event.findById(eventId);
@@ -17,29 +26,41 @@ export const createBooking = async (req, res) => {
       });
     }
 
-    // 2️⃣ Create booking (UNCHANGED)
-    const booking = new Booking(req.body);
+    // 2️⃣ Create booking (FIXED but LOGIC UNCHANGED)
+    const booking = new Booking({
+      eventId,
+      seatType,
+      adults,
+      children,
+      pricePerTicket,
+      totalAmount,
+      userEmail,
+    });
+
     const savedBooking = await booking.save();
 
     /* --------------------------------------------------
        ONLINE TICKET → EMAIL ACCESS DETAILS (UNCHANGED)
     ---------------------------------------------------*/
     if (event.ticketType === "online") {
-      if (user?.email) {
+      if (userEmail) {
         try {
           await transporter.sendMail({
-            to: user.email,
+            to: userEmail,
             subject: "Your Event Ticket – Access Details",
             html: `
               <div style="font-family: Arial, sans-serif; line-height: 1.6;">
                 <h2>Event Ticket Confirmation</h2>
 
-                <p>Dear ${user?.name || "Guest"},</p>
+                <p>Dear Guest,</p>
 
                 <p>
                   Thank you for booking your ticket for
                   <b>${event.eventName}</b>.
                 </p>
+
+                <p><b>Seat Type:</b> ${seatType}</p>
+                <p><b>Total Amount:</b> ₹${totalAmount}</p>
 
                 <p>
                   This event uses an <b>online ticket system</b>.
@@ -74,10 +95,10 @@ export const createBooking = async (req, res) => {
     }
 
     /* --------------------------------------------------
-       PDF TICKET → SEND PDF VIA EMAIL (NEW LOGIC)
+       PDF TICKET → SEND PDF VIA EMAIL (UNCHANGED)
     ---------------------------------------------------*/
     if (event.ticketType === "pdf") {
-      if (user?.email && event.ticketPdf) {
+      if (userEmail && event.ticketPdf) {
         try {
           const pdfPath = path.join(
             process.cwd(),
@@ -86,18 +107,21 @@ export const createBooking = async (req, res) => {
           );
 
           await transporter.sendMail({
-            to: user.email,
+            to: userEmail,
             subject: "Your Event Ticket (PDF)",
             html: `
               <div style="font-family: Arial, sans-serif; line-height: 1.6;">
                 <h2>Event Ticket Confirmation</h2>
 
-                <p>Dear ${user?.name || "Guest"},</p>
+                <p>Dear Guest,</p>
 
                 <p>
                   Thank you for booking your ticket for
                   <b>${event.eventName}</b>.
                 </p>
+
+                <p><b>Seat Type:</b> ${seatType}</p>
+                <p><b>Total Amount:</b> ₹${totalAmount}</p>
 
                 <p>
                   Please find your <b>PDF ticket</b> attached to this email.
@@ -126,7 +150,7 @@ export const createBooking = async (req, res) => {
         booking: savedBooking,
         ticketType: "pdf",
         message: "PDF ticket has been sent to your email",
-        ticketPdfUrl: `/uploads/${event.ticketPdf}`, // optional
+        ticketPdfUrl: `/uploads/${event.ticketPdf}`,
       });
     }
 
@@ -144,11 +168,12 @@ export const createBooking = async (req, res) => {
   }
 };
 
-
-// GET ALL BOOKINGS FOR A USER (UNCHANGED)
+// GET ALL BOOKINGS FOR A USER (UNCHANGED LOGIC, JUST FIXED FIELD)
 export const getBookingsByUser = async (req, res) => {
   try {
-    const bookings = await Booking.find({ userId: req.params.userId });
+    const bookings = await Booking.find({
+      userEmail: req.params.email,
+    });
     res.json(bookings);
   } catch (error) {
     res.status(500).json({ error: error.message });

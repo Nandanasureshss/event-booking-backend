@@ -2,32 +2,39 @@ import mongoose from "mongoose";
 
 const bookingSchema = new mongoose.Schema({
   eventId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "Event",
+    required: true,
+  },
+
+  seatType: {
     type: String,
     required: true,
   },
-  seatType: {
-    type: String,
-    required: true, // VIP / Premium / Normal
-  },
+
   adults: {
     type: Number,
-    default: 0
+    default: 0,
   },
+
   children: {
     type: Number,
-    default: 0
+    default: 0,
   },
-  pricePerPerson: {
+
+  pricePerTicket: {
     type: Number,
-    // required: true
+    required: true,
   },
+
   totalAmount: {
     type: Number,
-    required: true
+    required: true,
   },
-  userId: {
+
+  userEmail: {
     type: String,
-    // required: true
+    required: true,
   },
 }, { timestamps: true });
 

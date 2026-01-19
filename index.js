@@ -1,9 +1,10 @@
 import dotenv from "dotenv";
-dotenv.config(); 
+dotenv.config();
 
 import express from "express";
 import cors from "cors";
-import path from "path";
+
+import { connectDB } from "./dbconnection/db.js";
 
 import authRoutes from "./Routes/authRoute/authRoutes.js";
 import hotelBookingRoutes from "./Routes/hotelbookingRoutes/hotelbookingRoutes.js";
@@ -13,7 +14,6 @@ import hotelRoutes from "./Routes/hotelRoute/hotelRoute.js";
 import cartRoutes from "./Routes/cartRoutes/cartRoutes.js";
 import wishlistRoutes from "./Routes/wishlistRoute/wishlistRoutes.js";
 import loginRoutes from "./Routes/loginRoutes/loginRoutes.js";
-import "./dbconnection/db.js";
 
 const app = express();
 
@@ -30,10 +30,12 @@ app.use("/api/hotels", hotelRoutes);
 app.use("/api/cart", cartRoutes);
 app.use("/api/wishlist", wishlistRoutes);
 app.use("/api/login", loginRoutes);
+
 const PORT = process.env.PORT || 5000;
 
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+// 🔥 CONNECT DB FIRST, THEN START SERVER
+connectDB().then(() => {
+  app.listen(PORT, () => {
+    console.log(` Server running on port ${PORT}`);
+  });
 });
-
-

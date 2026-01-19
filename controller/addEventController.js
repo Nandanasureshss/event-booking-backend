@@ -230,20 +230,24 @@ export const getSingleEvent = async (req, res) => {
 
 export const getAllEvents = async (req, res) => {
   try {
-    const events = await Event.find().sort({ createdAt: -1 });
+    console.log("🔥 GET /all-events HIT");
+
+    const events = await Event.find();
+    console.log("📦 EVENTS FOUND:", events.length);
 
     res.status(200).json({
       success: true,
       data: events
     });
-
   } catch (error) {
+    console.error("❌ getAllEvents error:", error);
     res.status(500).json({
       success: false,
       message: error.message
     });
   }
 };
+
 
 /* ---------------- GET POPULAR EVENTS ---------------- */
 
@@ -265,4 +269,3 @@ export const getPopularEvents = async (req, res) => {
     res.status(500).json({ success: false, message: err.message });
   }
 };
-

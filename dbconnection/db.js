@@ -1,20 +1,23 @@
 import mongoose from "mongoose";
 import dotenv from "dotenv";
-console.log("ENV KEYS:", Object.keys(process.env));
-console.log("MONGO_URL VALUE:", process.env.MONGO_URL);
 
-if (process.env.NODE_ENV !== "production") {
-  dotenv.config();
-}
-const mongoURL = process.env.MONGO_URL;
+dotenv.config();
 
-mongoose.connect(mongoURL, {
-  useNewUrlParser: true,
-  useUnifiedTopology: true
-})
-.then(() => {
-  console.log("MongoDB connected successfully");
-})
-.catch((err) => {
-  console.log("MongoDB connection error:", err);
-});
+mongoose.set("bufferCommands", false); // 🔥 IMPORTANT
+
+export const connectDB = async () => {
+  try {
+    if (!process.env.MONGO_URL) {
+      throw new Error("MONGO_URL not found in environment");
+    }
+
+    await mongoose.connect(process.env.MONGO_URL, {
+      serverSelectionTimeoutMS: 30000,
+    });
+
+    console.log("✅ MongoDB connected successfully");
+  } catch (error) {
+    console.error("❌ MongoDB connection failed:", error.message);
+    process.exit(1);
+  }
+};
