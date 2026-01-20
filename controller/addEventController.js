@@ -4,8 +4,6 @@ import streamifier from "streamifier";
 import nodemailer from "nodemailer"
 export const createEvent = async (req, res) => {
   try {
-    console.log("FILES RECEIVED 👉", req.files);
-
     const {
       eventName,
       location,
@@ -13,14 +11,14 @@ export const createEvent = async (req, res) => {
       time,
       eventCategory,
       isPopular,
-      seatingCategories,
-      ticketType
+      ticketType,
+      seatingCategories
     } = req.body;
- 
-    // ✅ Parse seating categories
-    let parsedCategories = JSON.parse(seatingCategories);
 
-    parsedCategories = parsedCategories.map((cat) => ({
+    const isPopularBoolean = isPopular === "true" || isPopular === true;
+
+    let parsedCategories = JSON.parse(seatingCategories || "[]");
+    parsedCategories = parsedCategories.map(cat => ({
       name: cat.name,
       price: Number(cat.price),
       purchasePrice: Number(cat.purchasePrice),
@@ -28,51 +26,35 @@ export const createEvent = async (req, res) => {
       ticketPdfPath: null
     }));
 
-    // ✅ Upload images to Cloudinary
-  const mediaFiles = [];
-  let ticketPdf = null;
+    const mediaFiles = [];
+    let ticketPdf = null;
 
-   /* ---------- UPLOAD PDF TO CLOUDINARY ---------- */
-if (ticketType === "pdf" && req.files?.ticketPdf?.length > 0) {
-  const pdfFile = req.files.ticketPdf[0];
+    if (ticketType === "pdf" && req.files?.ticketPdf?.length > 0) {
+      const pdfFile = req.files.ticketPdf[0];
 
-  const pdfResult = await new Promise((resolve, reject) => {
-    const stream = cloudinary.uploader.upload_stream(
-      {
-        resource_type: "raw",
-        folder: "event_tickets"
-      },
-      (error, result) => {
-        if (result) resolve(result);
-        else reject(error);
+      const pdfResult = await new Promise((resolve, reject) => {
+        const stream = cloudinary.uploader.upload_stream(
+          { resource_type: "raw", folder: "event_tickets" },
+          (error, result) => (result ? resolve(result) : reject(error))
+        );
+        streamifier.createReadStream(pdfFile.buffer).pipe(stream);
+      });
+
+      ticketPdf = pdfResult.secure_url;
+    }
+
+    if (req.files?.mediaFiles) {
+      for (const file of req.files.mediaFiles) {
+        const result = await new Promise((resolve, reject) => {
+          const stream = cloudinary.uploader.upload_stream(
+            { folder: "events" },
+            (error, result) => (result ? resolve(result) : reject(error))
+          );
+          streamifier.createReadStream(file.buffer).pipe(stream);
+        });
+        mediaFiles.push(result.secure_url);
       }
-    );
-
-    streamifier.createReadStream(pdfFile.buffer).pipe(stream);
-  });
-
-  ticketPdf = pdfResult.secure_url;
-}
-
-if (req.files?.mediaFiles) {
-  for (const file of req.files.mediaFiles) {
-    const result = await new Promise((resolve, reject) => {
-      const stream = cloudinary.uploader.upload_stream(
-        { folder: "events" },
-        (error, result) => {
-          if (result) resolve(result);
-          else reject(error);
-        }
-      );
-
-      streamifier.createReadStream(file.buffer).pipe(stream);
-    });
-
-    mediaFiles.push(result.secure_url);
-  }
-}
-
-
+    }
 
     const event = new Event({
       eventName,
@@ -80,26 +62,19 @@ if (req.files?.mediaFiles) {
       date,
       time,
       eventCategory,
-      isPopular,
+      isPopular: isPopularBoolean,
       ticketType,
-      ticketPdf, // Cloudinary URL
-seatingCategories: parsedCategories,
+      ticketPdf,
+      seatingCategories: parsedCategories,
       mediaFiles
     });
 
     await event.save();
 
-    res.status(201).json({
-      success: true,
-      message: "Event added successfully"
-    });
-
+    res.status(201).json({ success: true, message: "Event added successfully" });
   } catch (error) {
     console.error(error);
-    res.status(500).json({
-      success: false,
-      message: "Failed to add event"
-    });
+    res.status(500).json({ success: false, message: "Failed to add event" });
   }
 };
 
@@ -250,22 +225,26 @@ export const getAllEvents = async (req, res) => {
 
 
 /* ---------------- GET POPULAR EVENTS ---------------- */
-
 export const getPopularEvents = async (req, res) => {
   try {
-    const { location, date } = req.query;
-
     const filter = { isPopular: true };
 
-    if (location) filter.location = location;
-    if (date) filter.date = date;
+    if (req.query.location?.trim()) {
+      filter.location = req.query.location.trim();
+    }
 
     const events = await Event.find(filter)
-      .sort({ createdAt: -1 })
       .limit(3);
 
-    res.json({ success: true, data: events });
-  } catch (err) {
-    res.status(500).json({ success: false, message: err.message });
+    res.status(200).json({
+      success: true,
+      data: events
+    });
+  } catch (error) {
+    console.error("❌ getPopularEvents error:", error);
+    res.status(500).json({
+      success: false,
+      message: error.message
+    });
   }
 };

@@ -19,7 +19,7 @@ router.post(
 );
 
 router.get("/all-events", getAllEvents);
-router.get("/:id", getSingleEvent);
 router.get("/popular", getPopularEvents);
+router.get("/:id", getSingleEvent);
 
 export default router;
